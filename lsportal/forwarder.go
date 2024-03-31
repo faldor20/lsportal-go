@@ -6,14 +6,16 @@ package lsportal
 // thinks it's operating on a file of it's own language
 
 import (
+	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
 	"github.com/tliron/glsp/server"
 )
 
 type ForwarderHandler struct {
+	logger commonlog.Logger
 	// Base Protocol
-	Transformer     Transformer
-	InclusionServer *server.Server
+	Transformer Transformer
+	otherServer *server.Server
 }
 
 // Proves that ForwarderHandler implements glsp.Handler
@@ -31,19 +33,25 @@ func (self *ForwarderHandler) Handle(context *glsp.Context) (r any, validMethod 
 	self.Transformer.TransformRequest(context)
 	res, err := self.forwardMessage(context)
 	if err != nil {
+		self.logger.Errorf("error forwarding message: %v", err)
 		return nil, true, true, err
 	}
-	self.Transformer.TransformResponse(&res)
+
+	self.Transformer.TransformResponse(res)
 
 	//TODO: return proper params and method validation
 	return res, true, true, err
 
 }
 
-func (self *ForwarderHandler) forwardMessage(context *glsp.Context) (any, error) {
-	res, err := self.InclusionServer.Connection.CallRaw(context.Context, context.Method, context.Params)
+func (self *ForwarderHandler) forwardMessage(context *glsp.Context) (*any, error) {
+
+	var res any
+	err := self.otherServer.Connection.Call(context.Context, context.Method, context.Params, &res)
 	if err != nil {
 		return nil, err
 	}
-	return res, err
+	//unmarshal to any
+
+	return &res, err
 }

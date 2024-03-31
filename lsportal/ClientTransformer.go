@@ -7,6 +7,8 @@ type FromInclusionTransformer struct {
 	ServerTransformer FromClientTransformer
 }
 
+var _ Transformer = &FromInclusionTransformer{}
+
 //TODO: the server and client transformer should be symmetric and their contets should be interchangable
 
 // Transform requests from the inclusionServer so that the client is happy
@@ -28,9 +30,9 @@ func (trans *FromInclusionTransformer) TransformRequest(context *glsp.Context) e
 }
 
 // Transform responses from the client so that the inclusion server is happy
-func (trans *FromInclusionTransformer) TransformResponse(response any) any {
+func (trans *FromInclusionTransformer) TransformResponse(response *any) {
 	//Change url back to original
-	response2 := response.(map[string]interface{})
+	response2 := (*response).(map[string]interface{})
 	if reqMap, ok := response2["textDocument"].(map[string]interface{}); ok {
 		// reqMap is the object in "request: {...}"
 		if uri, ok := reqMap["uri"].(string); ok {
@@ -41,5 +43,4 @@ func (trans *FromInclusionTransformer) TransformResponse(response any) any {
 		}
 	}
 
-	return response
 }

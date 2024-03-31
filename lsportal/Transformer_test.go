@@ -264,14 +264,14 @@ func TestTransformer_TransformResponse(t *testing.T) {
 	}
 
 	// Define a sample response
-	response := map[string]interface{}{
+	response := any(map[string]interface{}{
 		"textDocument": map[string]interface{}{
 			"uri": "file:///path/to/doc.go",
 		},
-	}
+	})
 
 	// Call the TransformResponse method
-	transformedResponse := trans.TransformResponse(response)
+	trans.TransformResponse(&response)
 
 	// Assert the transformed response
 	expectedResponse := map[string]interface{}{
@@ -279,7 +279,7 @@ func TestTransformer_TransformResponse(t *testing.T) {
 			"uri": "file:///path/to/doc.txt",
 		},
 	}
-	if !reflect.DeepEqual(transformedResponse, expectedResponse) {
-		t.Errorf("Expected transformed response: %v, but got: %v", expectedResponse, transformedResponse)
+	if !reflect.DeepEqual(expectedResponse, response) {
+		t.Errorf("Expected transformed response: %v, but got: %v", expectedResponse, response)
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 type Transformer interface {
 	TransformRequest(context *glsp.Context) error
-	TransformResponse(response any) any
+	TransformResponse(response *any)
 }
 
 // Proves that ServerTransformer implements Transformer
@@ -75,10 +75,13 @@ func (trans *FromClientTransformer) TransformRequest(context *glsp.Context) erro
 }
 
 // Transfrom Responses from the inclusion server so that they are recognizable by the client
-func (trans *FromClientTransformer) TransformResponse(response any) any {
+func (trans *FromClientTransformer) TransformResponse(response *any) {
 
 	//Change url back to original
-	response2 := response.(map[string]interface{})
+	if *response == nil {
+		return
+	}
+	response2 := (*response).(map[string]interface{})
 	if reqMap, ok := response2["textDocument"].(map[string]interface{}); ok {
 		// reqMap is the object in "request: {...}"
 		if uri, ok := reqMap["uri"].(string); ok {
@@ -89,7 +92,6 @@ func (trans *FromClientTransformer) TransformResponse(response any) any {
 			}
 		}
 	}
-	return response
 
 }
 
