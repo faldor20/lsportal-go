@@ -6,6 +6,9 @@ package lsportal
 // thinks it's operating on a file of it's own language
 
 import (
+	contextpkg "context"
+	"time"
+
 	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
 	"github.com/tliron/glsp/server"
@@ -37,17 +40,30 @@ func (self *ForwarderHandler) Handle(context *glsp.Context) (r any, validMethod 
 		return nil, true, true, err
 	}
 
-	self.Transformer.TransformResponse(res)
-
-	//TODO: return proper params and method validation
-	return res, true, true, err
+	//this means we sent a request with a response
+	if *res != nil {
+		self.Transformer.TransformResponse(res)
+		//TODO: return proper params and method validation
+		return res, true, true, nil
+	}
+	return nil, true, true, nil
 
 }
 
 func (self *ForwarderHandler) forwardMessage(context *glsp.Context) (*any, error) {
 
 	var res any
-	err := self.otherServer.Connection.Call(context.Context, context.Method, context.Params, &res)
+	var err error
+	ctx, cancel := contextpkg.WithTimeout(context.Context, 2*time.Second)
+	defer cancel()
+	if context.Notification {
+
+		err = self.otherServer.Connection.Notify(ctx, context.Method, context.Params)
+		res = nil
+
+	} else {
+		err = self.otherServer.Connection.Call(ctx, context.Method, context.Params, &res)
+	}
 	if err != nil {
 		return nil, err
 	}

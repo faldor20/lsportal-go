@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
 	. "github.com/tliron/glsp/protocol_3_16"
 )
@@ -19,6 +20,7 @@ type Transformer interface {
 var _ Transformer = &FromClientTransformer{}
 
 type FromClientTransformer struct {
+	logger         commonlog.Logger
 	Regex          string
 	ExclusionRegex string
 	Extension      string
@@ -28,7 +30,13 @@ type FromClientTransformer struct {
 
 // New
 func NewFromClientTransformer(regex string, exclusionRegex string, extension string) FromClientTransformer {
-	return FromClientTransformer{Regex: regex, ExclusionRegex: exclusionRegex, Extension: extension, UriMap: make(map[string]string), Documents: make(map[string]TextDocument)}
+	return FromClientTransformer{
+		Regex:          regex,
+		ExclusionRegex: exclusionRegex,
+		Extension:      extension,
+		UriMap:         make(map[string]string),
+		Documents:      make(map[string]TextDocument),
+		logger:         commonlog.GetLogger("FromClientTransformer")}
 }
 
 // Transform requests from the client so that the inclusion server is happy
@@ -36,15 +44,17 @@ func (trans *FromClientTransformer) TransformRequest(context *glsp.Context) erro
 	switch context.Method {
 	case MethodTextDocumentDidChange:
 		runParamsTransform(context, func(params *DidChangeTextDocumentParams) error {
+			originalUri := params.TextDocument.URI
 			params.TextDocument.URI = trans.changeExtension(params.TextDocument.URI)
 
-			newDoc, newParams, err := trans.Documents[params.TextDocument.URI].UpdateAndGetChanges(*params, trans.Regex, trans.ExclusionRegex)
+			newDoc, newParams, err := trans.Documents[originalUri].UpdateAndGetChanges(*params, trans.Regex, trans.ExclusionRegex)
+			trans.logger.Debugf("Updated document: %s", newDoc)
 			//TODO: figure out error handling
 			if err != nil {
 				return fmt.Errorf("Error applying changes to document: %v", err)
 			}
 			//Newdoc has the changes applied but doesn't have the inclusions isolated
-			trans.Documents[params.TextDocument.URI] = newDoc
+			trans.Documents[originalUri] = newDoc
 			params.ContentChanges = newParams.ContentChanges
 			return nil
 
@@ -52,9 +62,15 @@ func (trans *FromClientTransformer) TransformRequest(context *glsp.Context) erro
 	case MethodTextDocumentDidOpen:
 		runParamsTransform(context, func(params *DidOpenTextDocumentParams) error {
 			originalUri := params.TextDocument.URI
+
 			params.TextDocument.URI = trans.changeExtension(originalUri)
 			//We need to save this so we can change the URI back to the original in the response
-			trans.UriMap[originalUri] = params.TextDocument.URI
+			trans.UriMap[params.TextDocument.URI] = originalUri
+			trans.Documents[originalUri] = TextDocument{
+				Text: params.TextDocument.Text,
+				URI:  params.TextDocument.URI,
+			}
+			trans.logger.Debugf("Added document: %s", originalUri)
 			return nil
 		})
 	default:
