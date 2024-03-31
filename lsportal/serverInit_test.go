@@ -11,9 +11,9 @@ import (
 
 func TestInitForwarders(t *testing.T) {
 	debug := true
-	regex := ".*\\.go"
-	exclusionRegex := "_test\\.go"
-	extension := ".go"
+	regex := "~(.*)~"
+	exclusionRegex := ";(.*);"
+	extension := "html"
 	t.Log("starting test")
 	commonlog.Initialize(3, "lsportalTest.log")
 	commonlog.SetBackend(&testBackend{verbosity: 3, t: t})
@@ -31,7 +31,7 @@ func TestInitForwarders(t *testing.T) {
 	// clientRpc, inclusionRpc := makejsonStreams()
 
 	// Send a message from the client to the inclusion server
-	clientMessage := lspTest{Method: "initialize", Params: protocol.TextDocumentItem{URI: "file://this/is/a.html"}}
+	clientMessage := lspTest[fakeLspReq]{Method: "test", Params: fakeLspReq{TextDocument: protocol.TextDocumentItem{URI: "file://this/is/a.go"}}}
 	go func() {
 		err := clientRpc.WriteObject(clientMessage)
 		if err != nil {
@@ -41,14 +41,15 @@ func TestInitForwarders(t *testing.T) {
 
 	// Read the message on the inclusion server
 
-	var receivedMessage lspTest
+	var receivedMessage lspTest[fakeLspReq]
 	err := inclusionRpc.ReadObject(&receivedMessage)
 	if err != nil {
 		t.Fatalf("Failed to read message on inclusion server: %v", err)
 	}
-
+	//The extension should have changed
+	clientMessage.Params.TextDocument.URI = "file://this/is/a.html"
 	if receivedMessage != clientMessage {
-		t.Errorf("Received message on inclusion server doesn't match. Got: %s, Want: %s", receivedMessage, clientMessage)
+		t.Errorf("Received message on inclusion server doesn't match. Got: %v, Want: %v", receivedMessage, clientMessage)
 	}
 
 	// Close the connections
@@ -56,9 +57,9 @@ func TestInitForwarders(t *testing.T) {
 
 }
 
-type lspTest struct {
-	Method string      `json:"method"`
-	Params interface{} `json:"params"`
+type lspTest[T any] struct {
+	Method string `json:"method"`
+	Params T      `json:"params"`
 }
 type fakeLspReq struct {
 	TextDocument protocol.TextDocumentItem `json:"textDocument"`

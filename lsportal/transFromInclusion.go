@@ -7,12 +7,12 @@ import (
 
 // This transformer specifically handles messages from client to the server
 type FromInclusionTransformer struct {
-	ServerTransformer FromClientTransformer
+	ServerTransformer *FromClientTransformer
 }
 
 var _ Transformer = &FromInclusionTransformer{}
 
-//TODO: the server and client transformer should be symmetric and their contets should be interchangable
+//TODO: the server and client transformer should be symmetric and their contents should be interchangable
 
 // Transform requests from the inclusionServer so that the client is happy
 func (trans *FromInclusionTransformer) TransformRequest(context *glsp.Context) error {

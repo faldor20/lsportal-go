@@ -12,7 +12,7 @@ func InitForwarders(debug bool, regex string, exclusionRegex string, extension s
 	fromClient := server.NewServer(&fromClientForwarder, "fromCLient", debug)
 
 	//client
-	fromInclusionTrans := FromInclusionTransformer{ServerTransformer: fromClientTrans}
+	fromInclusionTrans := FromInclusionTransformer{ServerTransformer: &fromClientTrans}
 	fromInclusionForwarder := ForwarderHandler{Transformer: &fromInclusionTrans, logger: commonlog.GetLogger("fromInclusionForwader")}
 	fromInclusion := server.NewServer(&fromInclusionForwarder, "fromInclusion", debug)
 
