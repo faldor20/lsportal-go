@@ -1,0 +1,4 @@
+2024/03/31 13:10:19.684   INFO [fromInclusion] new stream connection
+2024/03/31 13:12:02.021   INFO [fromInclusion] new stream connection
+2024/03/31 13:12:02.021   NOTE [toInclusion] reading from stdin, writing to stdout
+2024/03/31 13:12:02.021   INFO [toInclusion] new stream connection

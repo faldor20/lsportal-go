@@ -3,6 +3,7 @@ package lsportal
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	. "github.com/tliron/glsp/protocol_3_16"
 )
@@ -18,9 +19,13 @@ func (textDocument TextDocument) UpdateAndGetChanges(params DidChangeTextDocumen
 		return textDocument, params, err
 	}
 	//replace any content not in inclusions with whitespace
-	newDoc.Text = whitespaceExceptInclusions(newDoc.Text, regex, exclusionRegex)
+	inclusionDoc := TextDocument{
+		URI:  textDocument.URI,
+		Text: whitespaceExceptInclusions(newDoc.Text, regex, exclusionRegex),
+	}
 	//update the content changes to reflect the whitespaced textDocument
-	params.ContentChanges = newDoc.NewChangeEventText(&params)
+	params.ContentChanges = inclusionDoc.NewChangeEventText(&params)
+
 	return newDoc, params, nil
 }
 
@@ -94,12 +99,10 @@ func handleWholeOrPartialChanges[T any](params *DidChangeTextDocumentParams, han
 func (doc TextDocument) NewChangeEventText(params *DidChangeTextDocumentParams) []any {
 	ret, _ := handleWholeOrPartialChanges(params,
 		func(changes []TextDocumentContentChangeEvent) ([]any, error) {
-			content := []byte(doc.Text)
-			newChanges := make([]any, len(changes))
-			for i, change := range changes {
-				newChanges[i] = TextDocumentContentChangeEvent{Text: string(textFromRange(content, change.Range)), Range: change.Range}
-			}
-			return newChanges, nil
+			// We are just faking this by sending the whole document each time, we should probably be able to
+			// figure out the correct range
+			// that covers all changes made by the list of changes we got so we can send a single change event.
+			return []any{makeFullDocumentChange(doc)}, nil
 		},
 		func(change TextDocumentContentChangeEventWhole) ([]any, error) {
 			change.Text = doc.Text
@@ -115,4 +118,20 @@ func textFromRange(text []byte, range_ *Range) []byte {
 	return text[start:end]
 }
 
-//Test for applying changes
+// Returns a change event for the entire document
+// This can be used so we don't have to bother with incremental changes
+func makeFullDocumentChange(doc TextDocument) TextDocumentContentChangeEvent {
+	lastLineLength := len(doc.Text) - strings.LastIndex(doc.Text, "\n")
+	return TextDocumentContentChangeEvent{
+		Range: &Range{
+			Start: Position{Line: 0, Character: 0},
+			End:   Position{Line: uint32(strings.Count(doc.Text, "\n")), Character: uint32(lastLineLength)},
+		},
+		Text: doc.Text,
+	}
+
+}
+
+//TODO: We should try to generate a correct changeEvent for each changeEvent coming in, this would require us the run the inclusion extraction code after every change,
+// then copy the change text from the document and put that into the event
+// This cannot be done at the end because changes can delete content

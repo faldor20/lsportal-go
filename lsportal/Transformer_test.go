@@ -2,6 +2,7 @@ package lsportal
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -40,6 +41,13 @@ func TestGetOnlyInclusions(t *testing.T) {
 			expected:       "~Hello,\n        !~\n                ",
 		},
 		{
+			name:           "Inclusion and exclusion",
+			text:           "~Hello,\n ;world;!~\n This is a test.",
+			inclusionRegex: `~([\s\S]*)~`,
+			exclusionRegex: `(;[\s\S]*;)`,
+			expected:       " Hello,\n        ! \n                ",
+		},
+		{
 			name:           "No matches",
 			text:           "Hello, world!",
 			inclusionRegex: `(nothing)`,
@@ -76,11 +84,11 @@ func validateChanges(t *testing.T, before string, after string) {
 
 func TestTransformer_Transform(t *testing.T) {
 	// Create a new Transformer instance
-	trans := &Transformer{
-		regex:          `(~[\s\S]*~)`,
-		exclusionRegex: `(;[\s\S]*;)`,
-		extension:      "txt",
-		documents:      make(map[string]TextDocument),
+	trans := &FromClientTransformer{
+		Regex:          `(~[\s\S]*~)`,
+		ExclusionRegex: `(;[\s\S]*;)`,
+		Extension:      "txt",
+		Documents:      make(map[string]TextDocument),
 	}
 
 	// Create a test context
@@ -99,7 +107,7 @@ func TestTransformer_Transform(t *testing.T) {
 	}
 
 	// Call the Transform method
-	err := trans.Transform(context)
+	err := trans.TransformRequest(context)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -117,22 +125,57 @@ func TestTransformer_Transform(t *testing.T) {
 
 	// Check if the document content was transformed correctly
 	expectedContent := "~Hello,\n        !~\n                "
-	doc, ok := trans.documents[params.TextDocument.URI]
-	if !ok {
-		t.Errorf("Document not found in the transformer")
+	text := params.ContentChanges[0].(protocol.TextDocumentContentChangeEventWhole).Text
+
+	if text != expectedContent {
+		t.Errorf("Expected content: %q, Got: %q", expectedContent, text)
 	}
-	if doc.Text != expectedContent {
-		t.Errorf("Expected content: %q, Got: %q", expectedContent, doc.Text)
+}
+func TestTransform_completion(t *testing.T) {
+	// Create a new Transformer instance
+	trans := &FromClientTransformer{
+		Regex:          `(~[\s\S]*~)`,
+		ExclusionRegex: `(;[\s\S]*;)`,
+		Extension:      "go",
+		Documents:      make(map[string]TextDocument),
+	}
+
+	// Create a test context
+	context := &glsp.Context{
+		Method: protocol.MethodTextDocumentCompletion,
+		Params: []byte(`{
+            "textDocument": {
+                "uri": "file:///path/to/document.md"
+            },
+        	"position":{}
+        }`),
+	}
+
+	// Call the Transform method
+	err := trans.TransformRequest(context)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Check if the document URI was changed
+	var params protocol.DidChangeTextDocumentParams
+	err = json.Unmarshal(context.Params, &params)
+	if err != nil {
+		t.Errorf("Failed to unmarshal params: %v", err)
+	}
+	expectedURI := "file:///path/to/document.go"
+	if params.TextDocument.URI != expectedURI {
+		t.Errorf("Expected URI: %q, Got: %q", expectedURI, params.TextDocument.URI)
 	}
 }
 
 func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
 	// Create a new Transformer instance
-	trans := &Transformer{
-		regex:          `(~[\s\S]*~)`,
-		exclusionRegex: `(;[\s\S]*;)`,
-		extension:      "md",
-		documents:      make(map[string]TextDocument),
+	trans := &FromClientTransformer{
+		Regex:          `(~[\s\S]*~)`,
+		ExclusionRegex: `(;[\s\S]*;)`,
+		Extension:      "md",
+		Documents:      make(map[string]TextDocument),
 	}
 
 	// Create a test context with multiple change events
@@ -154,7 +197,7 @@ func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
                 {
                     "range": {
                         "start": {"line": 1, "character": 0},
-                        "end": {"line": 1, "character": 3}
+                        "end": {"line": 1, "character": 4}
                     },
                     "text": "~World"
                 },
@@ -170,12 +213,12 @@ func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
 	}
 
 	// Initialize the document in the transformer
-	trans.documents["file:///path/to/document.md"] = TextDocument{
+	trans.Documents["file:///path/to/document.md"] = TextDocument{
 		Text: "Old text\n~Old line\nOld content~",
 	}
 
 	// Call the Transform method
-	err := trans.Transform(context)
+	err := trans.TransformRequest(context)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -191,13 +234,52 @@ func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
 		t.Errorf("Expected URI: %q, Got: %q", expectedURI, params.TextDocument.URI)
 	}
 
+	expectedChanges := "          \n~World line\nTest content~"
+	expectedContent := "Hello text\n~World line\nTest content~"
+
 	// Check if the document content was transformed correctly
-	expectedContent := "~Hello text\nWorld line\nTest content~"
-	doc, ok := trans.documents[params.TextDocument.URI]
+
+	doc, ok := trans.Documents[params.TextDocument.URI]
 	if !ok {
 		t.Errorf("Document not found in the transformer")
 	}
 	if doc.Text != expectedContent {
 		t.Errorf("Expected content: %q, Got: %q", expectedContent, doc.Text)
+	}
+	// Check if the document content was transformed correctly
+	change := params.ContentChanges[0].(protocol.TextDocumentContentChangeEvent).Text
+
+	if change != expectedChanges {
+		t.Errorf("Expected change: %q, Got: %q", expectedChanges, change)
+	}
+}
+
+func TestTransformer_TransformResponse(t *testing.T) {
+	// Create a new Transformer instance
+	trans := &FromClientTransformer{
+		Extension: "go",
+		UriMap: map[string]string{
+			"file:///path/to/doc.go": "file:///path/to/doc.txt",
+		},
+	}
+
+	// Define a sample response
+	response := map[string]interface{}{
+		"textDocument": map[string]interface{}{
+			"uri": "file:///path/to/doc.go",
+		},
+	}
+
+	// Call the TransformResponse method
+	transformedResponse := trans.TransformResponse(response)
+
+	// Assert the transformed response
+	expectedResponse := map[string]interface{}{
+		"textDocument": map[string]interface{}{
+			"uri": "file:///path/to/doc.txt",
+		},
+	}
+	if !reflect.DeepEqual(transformedResponse, expectedResponse) {
+		t.Errorf("Expected transformed response: %v, but got: %v", expectedResponse, transformedResponse)
 	}
 }

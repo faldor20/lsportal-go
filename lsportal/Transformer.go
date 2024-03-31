@@ -10,42 +10,87 @@ import (
 	. "github.com/tliron/glsp/protocol_3_16"
 )
 
-type Transformer struct {
-	regex          string
-	exclusionRegex string
-	extension      string
-	documents      map[string]TextDocument
+type Transformer interface {
+	TransformRequest(context *glsp.Context) error
+	TransformResponse(response any) any
 }
 
-func (trans *Transformer) Transform(context *glsp.Context) error {
+// Proves that ServerTransformer implements Transformer
+var _ Transformer = &FromClientTransformer{}
+
+type FromClientTransformer struct {
+	Regex          string
+	ExclusionRegex string
+	Extension      string
+	UriMap         map[string]string
+	Documents      map[string]TextDocument
+}
+
+// New
+func NewFromClientTransformer(regex string, exclusionRegex string, extension string) FromClientTransformer {
+	return FromClientTransformer{Regex: regex, ExclusionRegex: exclusionRegex, Extension: extension, UriMap: make(map[string]string), Documents: make(map[string]TextDocument)}
+}
+
+// Transform requests from the client so that the inclusion server is happy
+func (trans *FromClientTransformer) TransformRequest(context *glsp.Context) error {
 	switch context.Method {
-	case MethodTextDocumentHover:
-		runParamsTransform(context, func(params *HoverParams) error {
-			params.TextDocument.URI = trans.changeExtension(params.TextDocument.URI)
-			return nil
-		})
-	case MethodTextDocumentCompletion:
-		runParamsTransform(context, func(params *CompletionParams) error {
-			params.TextDocument.URI = trans.changeExtension(params.TextDocument.URI)
-			return nil
-		})
 	case MethodTextDocumentDidChange:
 		runParamsTransform(context, func(params *DidChangeTextDocumentParams) error {
 			params.TextDocument.URI = trans.changeExtension(params.TextDocument.URI)
 
-			newDoc, newParams, err := trans.documents[params.TextDocument.URI].UpdateAndGetChanges(*params, trans.regex, trans.exclusionRegex)
+			newDoc, newParams, err := trans.Documents[params.TextDocument.URI].UpdateAndGetChanges(*params, trans.Regex, trans.ExclusionRegex)
 			//TODO: figure out error handling
 			if err != nil {
 				return fmt.Errorf("Error applying changes to document: %v", err)
 			}
-			trans.documents[params.TextDocument.URI] = newDoc
-			params = &newParams
+			//Newdoc has the changes applied but doesn't have the inclusions isolated
+			trans.Documents[params.TextDocument.URI] = newDoc
+			params.ContentChanges = newParams.ContentChanges
 			return nil
 
+		})
+	case MethodTextDocumentDidOpen:
+		runParamsTransform(context, func(params *DidOpenTextDocumentParams) error {
+			originalUri := params.TextDocument.URI
+			params.TextDocument.URI = trans.changeExtension(originalUri)
+			//We need to save this so we can change the URI back to the original in the response
+			trans.UriMap[originalUri] = params.TextDocument.URI
+			return nil
+		})
+	default:
+		runParamsTransform(context, func(params *any) error {
+			params2 := (*params).(map[string]interface{})
+			if reqMap, ok := params2["textDocument"].(map[string]interface{}); ok {
+				// reqMap is the object in "request: {...}"
+				if uri, ok := reqMap["uri"].(string); ok {
+					// uri is the URI of the document
+					reqMap["uri"] = trans.changeExtension(uri)
+				}
+			}
+			return nil
 		})
 
 	}
 	return nil
+}
+
+// Transfrom Responses from the inclusion server so that they are recognizable by the client
+func (trans *FromClientTransformer) TransformResponse(response any) any {
+
+	//Change url back to original
+	response2 := response.(map[string]interface{})
+	if reqMap, ok := response2["textDocument"].(map[string]interface{}); ok {
+		// reqMap is the object in "request: {...}"
+		if uri, ok := reqMap["uri"].(string); ok {
+			if strings.HasSuffix(uri, trans.Extension) {
+				// uri is the URI of the document
+				reqMap["uri"] = trans.UriMap[uri]
+
+			}
+		}
+	}
+	return response
+
 }
 
 // Process the text of the forwarder to replace anything except newlines not within the regexs with a space
@@ -124,8 +169,8 @@ func runParamsTransform[P any](context *glsp.Context, transform func(params *P) 
 	return nil
 }
 
-func (trans *Transformer) changeExtension(uri URI) string {
+func (trans *FromClientTransformer) changeExtension(uri URI) string {
 	strs := strings.Split(uri, ".")
-	strs[len(strs)-1] = trans.extension
+	strs[len(strs)-1] = trans.Extension
 	return strings.Join(strs, ".")
 }
