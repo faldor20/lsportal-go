@@ -2,12 +2,21 @@ package lsportal
 
 import (
 	"io"
+	"main/lsportal/testUtils"
 	"testing"
 
 	"github.com/sourcegraph/jsonrpc2"
 	"github.com/tliron/commonlog"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
+
+type lspTest[T any] struct {
+	Method string `json:"method"`
+	Params T      `json:"params"`
+}
+type fakeLspReq struct {
+	TextDocument protocol.TextDocumentItem `json:"textDocument"`
+}
 
 func TestInitForwarders(t *testing.T) {
 	debug := true
@@ -16,14 +25,12 @@ func TestInitForwarders(t *testing.T) {
 	extension := "html"
 	t.Log("starting test")
 	commonlog.Initialize(3, "lsportalTest.log")
-	commonlog.SetBackend(&testBackend{verbosity: 3, t: t})
 
-	commonlog.GetLogger("test").Info("runnning a test")
-	commonlog.GetWriter().Write([]byte("hello world"))
+	commonlog.SetBackend(&testUtils.TestBackend{Verbosity: 3, T: t})
 
 	// Create two pairs of pipes for bidirectional communication between the servers
 	// Start serving the streams on both servers
-	client, inclusion, closer := newFunction(debug, regex, exclusionRegex, extension)
+	client, inclusion, closer := InitServersWithPipeIO(debug, regex, exclusionRegex, extension)
 
 	//NOTE: It is important to use jsonrpc2.VSCodeObjectCodec{} for the codecs or the data will never be read by the server
 	clientRpc := jsonrpc2.NewBufferedStream(client, jsonrpc2.VSCodeObjectCodec{})
@@ -57,14 +64,6 @@ func TestInitForwarders(t *testing.T) {
 
 }
 
-type lspTest[T any] struct {
-	Method string `json:"method"`
-	Params T      `json:"params"`
-}
-type fakeLspReq struct {
-	TextDocument protocol.TextDocumentItem `json:"textDocument"`
-}
-
 func makejsonStreams() (jsonrpc2.ObjectStream, jsonrpc2.ObjectStream) {
 
 	// Create two pairs of pipes for bidirectional communication between the servers
@@ -86,7 +85,9 @@ func makejsonStreams() (jsonrpc2.ObjectStream, jsonrpc2.ObjectStream) {
 	return clientRpc, inclusionRpc
 }
 
-func newFunction(debug bool, regex string, exclusionRegex string, extension string) (io.ReadWriteCloser, io.ReadWriteCloser, func()) {
+// creates two servers, one for the client and one for the inclusion.
+// This allows us to test from both ends of the forwarding logic
+func InitServersWithPipeIO(debug bool, regex string, exclusionRegex string, extension string) (io.ReadWriteCloser, io.ReadWriteCloser, func()) {
 	fromClient, fromInclusion := InitForwarders(debug, regex, exclusionRegex, extension)
 
 	// Create two pairs of pipes for bidirectional communication between the servers

@@ -21,7 +21,9 @@ func (trans *FromInclusionTransformer) TransformRequest(context *glsp.Context) e
 		{
 			return runParamsTransform(context, func(params *ConfigurationParams) error {
 				for _, item := range params.Items {
-					*item.ScopeURI = trans.ServerTransformer.UriMap[*item.ScopeURI]
+					if item.ScopeURI != nil {
+						*item.ScopeURI = trans.ServerTransformer.UriMap[*item.ScopeURI]
+					}
 				}
 				return nil
 			})
@@ -29,6 +31,10 @@ func (trans *FromInclusionTransformer) TransformRequest(context *glsp.Context) e
 	default:
 
 		return runParamsTransform(context, func(params *any) error {
+			switch (*params).(type) {
+			case ([]any):
+				return nil
+			}
 			params2 := (*params).(map[string]interface{})
 			if reqMap, ok := params2["textDocument"].(map[string]interface{}); ok {
 				// reqMap is the object in "request: {...}"

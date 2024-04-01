@@ -3,7 +3,6 @@ package lsportal
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/tliron/commonlog"
@@ -75,12 +74,32 @@ func (trans *FromClientTransformer) TransformRequest(context *glsp.Context) erro
 		})
 	default:
 		runParamsTransform(context, func(params *any) error {
+
 			params2 := (*params).(map[string]interface{})
+			var foundUri string
 			if reqMap, ok := params2["textDocument"].(map[string]interface{}); ok {
 				// reqMap is the object in "request: {...}"
 				if uri, ok := reqMap["uri"].(string); ok {
 					// uri is the URI of the document
+					foundUri = uri
 					reqMap["uri"] = trans.changeExtension(uri)
+				}
+			}
+			//check to make sure we are within the inclusion area
+			if foundUri != "" {
+				if position, ok := params2["position"].(map[string]interface{}); ok {
+					if position["line"] != nil && position["character"] != nil {
+						line := uint32(position["line"].(float64))
+						character := uint32(position["character"].(float64))
+						//find if the position is within an inclusion
+						for _, inclusion := range trans.Documents[foundUri].Inclusions {
+							if isInRange(inclusion, Position{Line: line, Character: character}) {
+								return nil
+							}
+						}
+						trans.logger.Infof("Request from outside of inclusions: %v", trans.Documents[foundUri].Inclusions)
+						return fmt.Errorf("Request from outside of inclusion: %v", trans.Documents[foundUri].Inclusions)
+					}
 				}
 			}
 			return nil
@@ -89,81 +108,40 @@ func (trans *FromClientTransformer) TransformRequest(context *glsp.Context) erro
 	}
 	return nil
 }
+func isInRange(r Range, pos Position) bool {
+	if pos.Line < r.Start.Line || pos.Line > r.End.Line {
+		return false
+	}
+	if pos.Line == r.Start.Line && pos.Character < r.Start.Character {
+		return false
+	}
+	if pos.Line == r.End.Line && pos.Character > r.End.Character {
+		return false
+	}
+	return true
+}
 
 // Transfrom Responses from the inclusion server so that they are recognizable by the client
 func (trans *FromClientTransformer) TransformResponse(response *any) {
 
 	//Change url back to original
-	if *response == nil {
-		return
-	}
-	response2 := (*response).(map[string]interface{})
-	if reqMap, ok := response2["textDocument"].(map[string]interface{}); ok {
-		// reqMap is the object in "request: {...}"
-		if uri, ok := reqMap["uri"].(string); ok {
-			if strings.HasSuffix(uri, trans.Extension) {
-				// uri is the URI of the document
-				reqMap["uri"] = trans.UriMap[uri]
+	switch (*response).(type) {
+	case map[string]interface{}:
+		response2 := (*response).(map[string]interface{})
+		if reqMap, ok := response2["textDocument"].(map[string]interface{}); ok {
+			// reqMap is the object in "request: {...}"
+			if uri, ok := reqMap["uri"].(string); ok {
+				if strings.HasSuffix(uri, trans.Extension) {
+					// uri is the URI of the document
+					reqMap["uri"] = trans.UriMap[uri]
 
+				}
 			}
 		}
+	default:
+		return
 	}
 
-}
-
-// Process the text of the forwarder to replace anything except newlines not within the regexs with a space
-// inclusionRegex: A multiline regex that should match the text you want to keep within its first match group, it is expected to match many times
-// exclusionRegex: A multiline regex that should match text you want remove from within an inclusion
-func whitespaceExceptInclusions(text string, inclusionRegex string, exclusionRegex string) string {
-	// Compile the inclusion regex
-	incRegex := regexp.MustCompile(inclusionRegex)
-
-	// Convert the text to a rune slice
-	runes := []rune(text)
-
-	// Create a slice to store the result
-	result := make([]rune, len(runes))
-
-	// Initialize the result slice with spaces
-	for i := range result {
-		if runes[i] == '\n' {
-			result[i] = '\n'
-		} else {
-			result[i] = ' '
-		}
-	}
-
-	// Find all matches of the inclusion regex
-	matches := incRegex.FindAllStringSubmatchIndex(text, -1)
-
-	// Iterate over the matches
-	for _, match := range matches {
-		// Check if there is a capturing group
-		if len(match) >= 4 {
-			start, end := match[2], match[3]
-			// Copy the captured text to the result slice
-			copy(result[start:end], runes[start:end])
-		}
-	}
-
-	// Convert the result slice back to a string
-	processedText := string(result)
-
-	// Compile the exclusion regex if provided
-	if exclusionRegex != "" {
-		excRegex := regexp.MustCompile(exclusionRegex)
-		// Replace any matches of the exclusion regex with spaces
-		processedText = excRegex.ReplaceAllStringFunc(processedText, func(match string) string {
-			return strings.Map(func(r rune) rune {
-				if r == '\n' {
-					return '\n'
-				}
-				return ' '
-			}, match)
-		})
-	}
-
-	return processedText
 }
 
 // unmarshals into your format

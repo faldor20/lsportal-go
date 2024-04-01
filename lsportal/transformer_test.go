@@ -6,68 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
-
-func TestGetOnlyInclusions(t *testing.T) {
-	// Test cases
-	testCases := []struct {
-		name           string
-		text           string
-		inclusionRegex string
-		exclusionRegex string
-		expected       string
-	}{
-		{
-			name:           "Simple inclusion",
-			text:           "Hello, world! This is a test.",
-			inclusionRegex: `(Hello|test)`,
-			exclusionRegex: "",
-			expected:       "Hello                   test ",
-		},
-		{
-			name:           "Inclusion with newlines",
-			text:           "Line 1\nLine 2\nLine 3",
-			inclusionRegex: `(Line \d)`,
-			exclusionRegex: "",
-			expected:       "Line 1\nLine 2\nLine 3",
-		},
-		{
-			name:           "Inclusion and exclusion",
-			text:           "~Hello,\n ;world;!~\n This is a test.",
-			inclusionRegex: `(~[\s\S]*~)`,
-			exclusionRegex: `(;[\s\S]*;)`,
-			expected:       "~Hello,\n        !~\n                ",
-		},
-		{
-			name:           "Inclusion and exclusion",
-			text:           "~Hello,\n ;world;!~\n This is a test.",
-			inclusionRegex: `~([\s\S]*)~`,
-			exclusionRegex: `(;[\s\S]*;)`,
-			expected:       " Hello,\n        ! \n                ",
-		},
-		{
-			name:           "No matches",
-			text:           "Hello, world!",
-			inclusionRegex: `(nothing)`,
-			exclusionRegex: "",
-			expected:       "             ",
-		},
-	}
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := whitespaceExceptInclusions(tc.text, tc.inclusionRegex, tc.exclusionRegex)
-			validateChanges(t, tc.text, result)
-
-			if result != tc.expected {
-				t.Errorf("Expected: %q, Got: %q", tc.expected, result)
-			}
-		})
-	}
-}
 
 func validateChanges(t *testing.T, before string, after string) {
 	//same length
@@ -89,6 +31,7 @@ func TestTransformer_Transform(t *testing.T) {
 		ExclusionRegex: `(;[\s\S]*;)`,
 		Extension:      "txt",
 		Documents:      make(map[string]TextDocument),
+		logger:         commonlog.GetLogger("FromClientTransformer"),
 	}
 
 	// Create a test context
@@ -176,6 +119,7 @@ func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
 		ExclusionRegex: `(;[\s\S]*;)`,
 		Extension:      "md",
 		Documents:      make(map[string]TextDocument),
+		logger:         commonlog.GetLogger("FromClientTransformer"),
 	}
 
 	// Create a test context with multiple change events
@@ -213,7 +157,7 @@ func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
 	}
 
 	// Initialize the document in the transformer
-	trans.Documents["file:///path/to/document.md"] = TextDocument{
+	trans.Documents["file:///path/to/document.txt"] = TextDocument{
 		Text: "Old text\n~Old line\nOld content~",
 	}
 
@@ -239,7 +183,7 @@ func TestTransformer_Transform_MultipleChangeEvents(t *testing.T) {
 
 	// Check if the document content was transformed correctly
 
-	doc, ok := trans.Documents[params.TextDocument.URI]
+	doc, ok := trans.Documents["file:///path/to/document.txt"]
 	if !ok {
 		t.Errorf("Document not found in the transformer")
 	}

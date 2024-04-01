@@ -5,9 +5,10 @@
 # lua-wrapped= { command = "_build/default/bin/main.exe", args = ['--extension=lua','--regex=\(\*\*\)([\s\S]*?)\(\*\*\)',"lua-language-server"], config = {  hostInfo="helix" } }
 # html = { command = "vscode-html-language-server", args = ["--stdio"], config = { provideFormatter = true } }
 # ocaml-template= { command = "_build/default/bin/main.exe", args = ['--extension=eml.ml','--regex=([\s\S]*)','--exclusion=((?>(?><.*?>)|(?>%>))[\s\S]*?(?>(?><\%\w)|(?><.*?>)))'',"ocamllsp","--","--stdio"], config = {  hostInfo="helix" } }
-# html-dream = { command = "_build/default/bin/main.exe", args = ['--extension=html','--regex=<.*?>.*</.*?>','--exclusion=(<%[\s\S]*?%>)',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
+html-dream = { command = "_build/default/bin/main.exe", args = ['--extension=html','--regex=<.*?>.*</.*?>','--exclusion=(<%[\s\S]*?%>)',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
 
 basic-test= { command = "go", args = ["run","main.go"], config = { provideFormatter = true } }
+
 
 #html:
 #(<.*?>.*</.*?>)

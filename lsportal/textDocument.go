@@ -9,8 +9,9 @@ import (
 )
 
 type TextDocument struct {
-	Text string
-	URI  URI
+	Text       string
+	URI        URI
+	Inclusions []Range
 }
 
 func (textDocument TextDocument) UpdateAndGetChanges(params DidChangeTextDocumentParams, regex string, exclusionRegex string) (TextDocument, DidChangeTextDocumentParams, error) {
@@ -18,11 +19,13 @@ func (textDocument TextDocument) UpdateAndGetChanges(params DidChangeTextDocumen
 	if err != nil {
 		return textDocument, params, err
 	}
+	isolatedText, inclusions := whitespaceExceptInclusions(newDoc.Text, regex, exclusionRegex)
 	//replace any content not in inclusions with whitespace
 	inclusionDoc := TextDocument{
 		URI:  textDocument.URI,
-		Text: whitespaceExceptInclusions(newDoc.Text, regex, exclusionRegex),
+		Text: isolatedText,
 	}
+	newDoc.Inclusions = inclusions
 	//update the content changes to reflect the whitespaced textDocument
 	params.ContentChanges = inclusionDoc.NewChangeEventText(&params)
 
