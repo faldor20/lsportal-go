@@ -1,9 +1,5 @@
 [language-server]
-html-templ= { command = "lsportal-go",
- args = 
-['--exclusion',
- '({{[\s\S]*?}})',
-    'html','htmlT[\n\s]*?\([\n\s]*?`([\s\S]*?)`[\s\n\,]*?\)',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
+html-templ= { command = "lsportal-go",args = ['--exclusion', '({{[\s\S]*?}})', 'html','htmlT[\n\s]*?\([\n\s]*?`([\s\S]*?)`[\s\n\,]*?\)',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
 
 [[language]]
 name = "go"

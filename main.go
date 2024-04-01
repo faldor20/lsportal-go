@@ -18,6 +18,7 @@ type Config struct {
 	extension      string
 	lsCmd          string
 	lsArgs         []string
+	debug          bool
 }
 
 var config Config
@@ -36,14 +37,16 @@ var rootCmd = &cobra.Command{
 			config.lsArgs = args[sepIndex:]
 		}
 
-		commonlog.Initialize(3, "./lsportalLog.log")
+		if config.debug {
+			commonlog.Initialize(3, "./lsportalLog.log")
+		}
 
 		err := validateInputs(&config)
 		if err != nil {
 			panic(err)
 		}
 
-		fromClient, fromInclusion := lsportal.InitForwarders(true, config.regex, config.exclusionRegex, config.extension)
+		fromClient, fromInclusion := lsportal.InitForwarders(config.debug, config.regex, config.exclusionRegex, config.extension)
 
 		readWrite, err := lsportal.StartLanguageServer(config.lsCmd, config.lsArgs)
 		if err != nil {
@@ -66,6 +69,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVar(&config.exclusionRegex, "exclusion", `;([\s\S]*);`, "Regular expression for exclusion")
+	rootCmd.Flags().BoolVar(&config.debug, "debug", false, "enable debugg logging")
 }
 
 func main() {
