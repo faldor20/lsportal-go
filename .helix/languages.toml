@@ -1,69 +1,13 @@
 [language-server]
-# html-mine = { command = "_build/default/bin/main.exe", args = ['--extension=html','--regex=<!--html-->([\s\S]*?)<!--html-->',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
-# ts-in-ocaml = { command = "_build/default/bin/main.exe", args = ['--extension=ts','--regex=\{ts\|([\s\S]*?)\|ts\}',"typescript-language-server","--","--stdio"], config = {  hostInfo="helix" } }
-# ocaml-wrapped= { command = "_build/default/bin/main.exe", args = ['--extension=ml','--regex=\(\*\*\)([\s\S]*?)\(\*\*\)',"ocamllsp","--","--stdio"], config = {  hostInfo="helix" } }
-# lua-wrapped= { command = "_build/default/bin/main.exe", args = ['--extension=lua','--regex=\(\*\*\)([\s\S]*?)\(\*\*\)',"lua-language-server"], config = {  hostInfo="helix" } }
-# html = { command = "vscode-html-language-server", args = ["--stdio"], config = { provideFormatter = true } }
-# ocaml-template= { command = "_build/default/bin/main.exe", args = ['--extension=eml.ml','--regex=([\s\S]*)','--exclusion=((?>(?><.*?>)|(?>%>))[\s\S]*?(?>(?><\%\w)|(?><.*?>)))'',"ocamllsp","--","--stdio"], config = {  hostInfo="helix" } }
-html-dream = { command = "_build/default/bin/main.exe", args = ['--extension=html','--regex=<.*?>.*</.*?>','--exclusion=(<%[\s\S]*?%>)',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
+html-templ= { command = "lsportal-go",
+ args = 
+['--exclusion',
+ '({{[\s\S]*?}})',
+    'html','htmlT[\n\s]*?\([\n\s]*?`([\s\S]*?)`[\s\n\,]*?\)',"vscode-html-language-server","--","--stdio"], config = {  hostInfo="helix" } }
 
-basic-test= { command = "go", args = ["run","main.go"], config = { provideFormatter = true } }
-
-
-#html:
-#(<.*?>.*</.*?>)
-
-#html template:
-
-#((?>(?><.*?>)|(?>%>))[\s\S]*?(?>(?><\%\w)|(?><.*?>)))
-
-# [[language]]
-# name = "typescript"
-# scope = "source.ts"
-# injection-regex = "(ts|typescript)"
-# file-types = ["ts", "mts", "cts"]
-# language-id = "typescript"
-# shebangs = ["deno", "ts-node"]
-# roots = []
-# language-servers = ["lua-wrapped","typescript-language-server"  ]
-# indent = { tab-width = 2, unit = "  " }
 [[language]]
-name = "typescript"
-language-servers = ["basic-test","typescript-language-server"  ]
+name = "go"
+language-servers = ["gopls","html-templ","tailwindcss-ls"  ]
 
-
-# [[language]]
-# name = "ocaml-templ"
-# scope = "source.ocaml"
-# injection-regex = "ocaml"
-# file-types = ["eml.ml"]
-# shebangs = ["ocaml", "ocamlrun", "ocamlscript"]
-# roots = []
-# comment-token = "(*"
-# language-servers = [ "ocaml-template","html-dream" ]
-# indent = { tab-width = 2, unit = "  " }
-
-# [language.auto-pairs]
-# '(' = ')'
-# '{' = '}'
-# '[' = ']'
-# '"' = '"'
-
-# [[grammar]]
-# name = "ocaml"
-# source = { git = "https://github.com/tree-sitter/tree-sitter-ocaml", rev = "23d419ba45789c5a47d31448061557716b02750a", subpath = "ocaml" }[[language]]
-
-# name = "htmlm"
-# scope = "text.html.basic"
-# injection-regex = "htmlm"
-# file-types = ["htmlm", "htm", "shtml", "xhtml", "xht", "jsp", "asp", "aspx", "jshtm", "volt", "rhtml"]
-# roots = []
-# language-servers = [ "html-mine" ]
-# auto-format = true
-# indent = { tab-width = 2, unit = "  " }
-
-# [[grammar]]
-# name = "htmlm"
-# source = { git = "https://github.com/tree-sitter/tree-sitter-html", rev = "29f53d8f4f2335e61bf6418ab8958dac3282077a" }
-
-
+[language-server.tailwindcss-ls]
+config = { userLanguages = { go= "html", "*.go" = "html" } }
