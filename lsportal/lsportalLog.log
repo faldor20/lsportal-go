@@ -1,4 +1,0 @@
-2024/03/31 21:23:40.465   INFO [fromInclusion] new stream connection
-2024/03/31 21:23:40.465   NOTE [fromCLient] reading from stdin, writing to stdout
-2024/03/31 21:23:40.465   INFO [fromCLient] new stream connection
-2024/03/31 21:23:40.474   INFO [fromInclusion] stream connection closed
