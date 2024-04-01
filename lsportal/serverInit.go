@@ -5,6 +5,7 @@ import (
 	"github.com/tliron/glsp/server"
 )
 
+// Connects two servers so that they forward messages between each other
 func InitForwarders(debug bool, regex string, exclusionRegex string, extension string) (*server.Server, *server.Server) {
 	//toInclusion
 	fromClientTrans := NewFromClientTransformer(regex, exclusionRegex, extension)
